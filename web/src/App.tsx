@@ -6,6 +6,7 @@ import ExecutionTable from "./components/ExecutionTable";
 import GpuChart from "./components/GpuChart";
 import {
   createCommand,
+  deleteCommand,
   fetchCommands,
   fetchExecutions,
   fetchGPU,
@@ -102,6 +103,17 @@ function App() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteCommand(id);
+      setCommands((prev) => prev.filter((c) => c.id !== id));
+      message.success("Deleted command");
+    } catch (err) {
+      console.error(err);
+      message.error("Failed to delete command");
+    }
+  };
+
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Header>
@@ -143,6 +155,7 @@ function App() {
                     selectedNodeId={selectedNode}
                     onRun={handleRun}
                     onCreate={handleCreate}
+                    onDelete={handleDelete}
                     loading={loading}
                   />
                 ),

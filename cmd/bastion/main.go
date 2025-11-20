@@ -74,6 +74,14 @@ func main() {
 func (s *bastionServer) handleCommands(w http.ResponseWriter, r *http.Request) {
     switch r.Method {
     case http.MethodGet:
+        if id := r.URL.Query().Get("id"); id != "" {
+            if cmd, ok := s.svc.GetCommand(id); ok {
+                writeJSON(w, http.StatusOK, cmd)
+                return
+            }
+            http.Error(w, "not found", http.StatusNotFound)
+            return
+        }
         writeJSON(w, http.StatusOK, s.svc.ListCommands())
     case http.MethodPost:
         var payload struct {
@@ -97,6 +105,17 @@ func (s *bastionServer) handleCommands(w http.ResponseWriter, r *http.Request) {
             return
         }
         writeJSON(w, http.StatusCreated, cmd)
+    case http.MethodDelete:
+        id := r.URL.Query().Get("id")
+        if id == "" {
+            http.Error(w, "id is required", http.StatusBadRequest)
+            return
+        }
+        if err := s.svc.DeleteCommand(id); err != nil {
+            http.Error(w, err.Error(), http.StatusNotFound)
+            return
+        }
+        w.WriteHeader(http.StatusNoContent)
     default:
         w.WriteHeader(http.StatusMethodNotAllowed)
     }

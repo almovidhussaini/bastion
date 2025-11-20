@@ -1,6 +1,19 @@
 ﻿import React, { useMemo, useState } from "react";
-import { Alert, Button, Card, Form, Input, Modal, Space, Table, Tag, Typography, message } from "antd";
-import { PlayCircleOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  Alert,
+  Button,
+  Card,
+  Form,
+  Input,
+  Modal,
+  Popconfirm,
+  Space,
+  Table,
+  Tag,
+  Typography,
+  message,
+} from "antd";
+import { EyeOutlined, PlayCircleOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import { Command, Node } from "../types";
 
 interface Props {
@@ -14,6 +27,7 @@ interface Props {
     script: string;
     timeout_seconds?: number;
   }) => Promise<void> | void;
+  onDelete: (id: string) => Promise<void> | void;
   loading?: boolean;
 }
 
@@ -23,10 +37,12 @@ const CommandList: React.FC<Props> = ({
   selectedNodeId,
   onRun,
   onCreate,
+  onDelete,
   loading,
 }) => {
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [viewing, setViewing] = useState<Command | null>(null);
   const [form] = Form.useForm();
 
   const nodeNames = useMemo(() => {
@@ -68,6 +84,9 @@ const CommandList: React.FC<Props> = ({
       key: "actions",
       render: (_: unknown, record: Command) => (
         <Space>
+          <Button icon={<EyeOutlined />} onClick={() => setViewing(record)}>
+            View
+          </Button>
           <Button
             icon={<PlayCircleOutlined />}
             type="primary"
@@ -76,9 +95,15 @@ const CommandList: React.FC<Props> = ({
           >
             Run
           </Button>
-          <Typography.Text type="secondary" style={{ color: "#000" }}>
-            {selectedNodeId ? nodeNames[selectedNodeId] : "Select a node"}
-          </Typography.Text>
+          <Popconfirm
+            title="Delete command?"
+            description="This will remove the command from Bastion."
+            okText="Delete"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => onDelete(record.id)}
+          >
+            <Button danger icon={<DeleteOutlined />} />
+          </Popconfirm>
         </Space>
       ),
     },
@@ -155,6 +180,41 @@ const CommandList: React.FC<Props> = ({
             <Input type="number" min={1} />
           </Form.Item>
         </Form>
+      </Modal>
+      <Modal
+        title={viewing ? viewing.name : "Command"}
+        open={!!viewing}
+        onCancel={() => setViewing(null)}
+        footer={null}
+        width={720}
+      >
+        {viewing && (
+          <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+            <Typography.Text strong>Description:</Typography.Text>
+            <Typography.Text>{viewing.description || "(none)"}</Typography.Text>
+            <Typography.Text strong>Script:</Typography.Text>
+            <div
+              style={{
+                background: "#0f172a",
+                color: "#e2e8f0",
+                padding: 12,
+                borderRadius: 10,
+                fontFamily: "JetBrains Mono, SFMono-Regular, Consolas, monospace",
+                whiteSpace: "pre-wrap",
+                border: "1px solid rgba(255,255,255,0.08)",
+              }}
+            >
+              {viewing.script}
+            </div>
+            <Typography.Text>
+              Timeout: <Tag color="blue">{viewing.timeout_seconds}s</Tag>
+            </Typography.Text>
+            <Typography.Text type="secondary">
+              ID: {viewing.id} · Created:{" "}
+              {viewing.created_at ? new Date(viewing.created_at).toLocaleString() : "n/a"}
+            </Typography.Text>
+          </Space>
+        )}
       </Modal>
     </Card>
   );

@@ -6,6 +6,7 @@ type CommandRepository interface {
     List() []Command
     Get(id string) (Command, bool)
     Save(command Command) Command
+    Delete(id string)
 }
 
 type NodeRepository interface {
@@ -51,6 +52,12 @@ func (r *InMemoryCommandRepo) Save(command Command) Command {
     defer r.mu.Unlock()
     r.data[command.ID] = command
     return command
+}
+
+func (r *InMemoryCommandRepo) Delete(id string) {
+    r.mu.Lock()
+    defer r.mu.Unlock()
+    delete(r.data, id)
 }
 
 type InMemoryNodeRepo struct {

@@ -36,6 +36,10 @@ func (s *BastionService) ListCommands() []Command {
     return s.commands.List()
 }
 
+func (s *BastionService) GetCommand(id string) (Command, bool) {
+    return s.commands.Get(id)
+}
+
 func (s *BastionService) ListNodes() []Node {
     return s.nodes.List()
 }
@@ -61,6 +65,17 @@ func (s *BastionService) CreateCommand(input Command) (Command, error) {
     input.ID = randomID("cmd")
     input.CreatedAt = time.Now().UTC()
     return s.commands.Save(input), nil
+}
+
+func (s *BastionService) DeleteCommand(id string) error {
+    if strings.TrimSpace(id) == "" {
+        return errors.New("id is required")
+    }
+    if _, ok := s.commands.Get(id); !ok {
+        return fmt.Errorf("unknown command %s", id)
+    }
+    s.commands.Delete(id)
+    return nil
 }
 
 func (s *BastionService) RegisterNode(node Node) Node {
