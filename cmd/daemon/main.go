@@ -20,7 +20,7 @@ func main() {
     mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("ok")) })
     mux.HandleFunc("/api/v1/exec", handleExec)
 
-    port := envOr("DAEMON_PORT", "9090")
+    port := envOr("DAEMON_PORT", "9081")
     log.Printf("Daemon listening on :%s", port)
     if err := http.ListenAndServe("127.0.0.1:"+port, mux); err != nil {
         log.Fatalf("daemon error: %v", err)

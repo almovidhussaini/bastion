@@ -2,12 +2,16 @@
 
 import (
     "bufio"
+    "bytes"
     "context"
     "encoding/json"
     "errors"
+    "fmt"
+    "io"
     "log"
     "net/http"
     "os"
+    "strconv"
     "strings"
     "time"
 
@@ -45,8 +49,11 @@ func main() {
     }
     svc := core.NewBastionService(commandRepo, nodeRepo, execRepo)
 
-    daemonURL := envOr("DAEMON_URL", "http://localhost:9090")
-    nodeRepo.Save(core.Node{ID: "node-local", Name: "Local Daemon", Address: daemonURL})
+    daemonURL := envOr("DAEMON_URL", "http://localhost:9081")
+    nodeID := envOr("BASTION_NODE_ID", "node-remote")
+    nodeName := envOr("BASTION_NODE_NAME", "Remote Daemon (shah@154.57.209.191)")
+    nodeAddress := envOr("BASTION_NODE_ADDRESS", daemonURL)
+    nodeRepo.Save(core.Node{ID: nodeID, Name: nodeName, Address: nodeAddress})
 
     if yamlPath := os.Getenv("COMMANDS_FILE"); yamlPath != "" {
         if cmds, err := yamlloader.LoadCommandsFromFile(yamlPath); err != nil {
@@ -213,14 +220,91 @@ func (s *bastionServer) handleGPU(w http.ResponseWriter, r *http.Request) {
     now := time.Now().UTC()
     samples := make([]core.GPUSample, 0, len(nodes))
     for _, n := range nodes {
-        samples = append(samples, core.GPUSample{
-            NodeID:      n.ID,
-            Timestamp:   now.Unix(),
-            Utilization: 20 + float64(len(n.ID))*5,
-            MemoryMB:    2000 + len(n.ID)*256,
-        })
+        sample := core.GPUSample{NodeID: n.ID, Timestamp: now.Unix()}
+        fetched, err := fetchGPUSample(n, now.Unix())
+        if err != nil {
+            log.Printf("gpu fetch error for node %s: %v", n.ID, err)
+        } else {
+            sample = fetched
+        }
+        samples = append(samples, sample)
     }
     writeJSON(w, http.StatusOK, samples)
+}
+
+func fetchGPUSample(node core.Node, timestamp int64) (core.GPUSample, error) {
+    req := map[string]interface{}{
+        "script":          "nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits",
+        "timeout_seconds": 10,
+    }
+    payload, err := json.Marshal(req)
+    if err != nil {
+        return core.GPUSample{}, fmt.Errorf("marshal exec request: %w", err)
+    }
+
+    url := strings.TrimRight(node.Address, "/") + "/api/v1/exec"
+    resp, err := http.Post(url, "application/json", bytes.NewReader(payload))
+    if err != nil {
+        return core.GPUSample{}, fmt.Errorf("post exec: %w", err)
+    }
+    defer resp.Body.Close()
+
+    body, _ := io.ReadAll(resp.Body)
+    if resp.StatusCode != http.StatusOK {
+        return core.GPUSample{}, fmt.Errorf("exec status %d: %s", resp.StatusCode, string(body))
+    }
+
+    var execResp struct {
+        Stdout string `json:"stdout"`
+        Stderr string `json:"stderr"`
+    }
+    if err := json.Unmarshal(body, &execResp); err != nil {
+        return core.GPUSample{}, fmt.Errorf("decode exec response: %w", err)
+    }
+
+    util, memMB, parseErr := parseNvidiaSmi(execResp.Stdout)
+    if parseErr != nil {
+        return core.GPUSample{
+            NodeID:      node.ID,
+            Timestamp:   timestamp,
+            Utilization: 0,
+            MemoryMB:    0,
+        }, fmt.Errorf("parse nvidia-smi output: %w (stderr: %s)", parseErr, execResp.Stderr)
+    }
+
+    return core.GPUSample{
+        NodeID:      node.ID,
+        Timestamp:   timestamp,
+        Utilization: util,
+        MemoryMB:    memMB,
+    }, nil
+}
+
+func parseNvidiaSmi(out string) (float64, int, error) {
+    scanner := bufio.NewScanner(strings.NewReader(out))
+    for scanner.Scan() {
+        line := strings.TrimSpace(scanner.Text())
+        if line == "" {
+            continue
+        }
+        parts := strings.Split(line, ",")
+        if len(parts) < 4 {
+            continue
+        }
+        utilStr := strings.TrimSpace(parts[1])
+        memUsedStr := strings.TrimSpace(parts[2])
+
+        util, err := strconv.ParseFloat(utilStr, 64)
+        if err != nil {
+            return 0, 0, fmt.Errorf("utilization parse: %w", err)
+        }
+        memUsed, err := strconv.Atoi(memUsedStr)
+        if err != nil {
+            return 0, 0, fmt.Errorf("memory parse: %w", err)
+        }
+        return util, memUsed, nil
+    }
+    return 0, 0, errors.New("no GPU lines found")
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
