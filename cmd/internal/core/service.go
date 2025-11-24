@@ -78,6 +78,34 @@ func (s *BastionService) DeleteCommand(id string) error {
     return nil
 }
 
+func (s *BastionService) UpdateCommand(id string, input Command) (Command, error) {
+    if strings.TrimSpace(id) == "" {
+        return Command{}, errors.New("id is required")
+    }
+    existing, ok := s.commands.Get(id)
+    if !ok {
+        return Command{}, fmt.Errorf("unknown command %s", id)
+    }
+    if strings.TrimSpace(input.Name) == "" {
+        return Command{}, errors.New("name is required")
+    }
+    if strings.TrimSpace(input.Script) == "" {
+        return Command{}, errors.New("script is required")
+    }
+    if input.TimeoutSeconds <= 0 {
+        input.TimeoutSeconds = existing.TimeoutSeconds
+    }
+    updated := Command{
+        ID:             existing.ID,
+        Name:           input.Name,
+        Description:    input.Description,
+        Script:         input.Script,
+        TimeoutSeconds: input.TimeoutSeconds,
+        CreatedAt:      existing.CreatedAt,
+    }
+    return s.commands.Save(updated), nil
+}
+
 func (s *BastionService) RegisterNode(node Node) Node {
     if node.ID == "" {
         node.ID = randomID("node")

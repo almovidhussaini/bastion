@@ -1,33 +1,35 @@
-﻿:root {
+:root {
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: #0e1117;
-  color: #dfe6ee;
+  background: #061826;
+  color: #e8f0f7;
   min-height: 100vh;
 }
 
 body {
   margin: 0;
-  background: radial-gradient(circle at 10% 20%, rgba(99, 119, 255, 0.15), transparent 25%),
-    radial-gradient(circle at 90% 10%, rgba(0, 222, 179, 0.18), transparent 20%),
-    linear-gradient(180deg, #0e1117 0%, #0b0d12 100%);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(14, 165, 233, 0.2), transparent 22%),
+    radial-gradient(circle at 80% 0%, rgba(249, 115, 22, 0.18), transparent 24%),
+    linear-gradient(180deg, #071b28 0%, #05121c 100%);
+  color: #e8f0f7;
 }
 
 .ant-layout-header {
-  background: rgba(12, 16, 24, 0.8);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(5, 18, 28, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .ant-layout-content {
-  padding: 24px;
+  padding: 28px;
 }
 
 .panel {
-  background: rgba(18, 22, 31, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
-  padding: 16px;
-  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(10, 31, 48, 0.9), rgba(6, 20, 33, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+  padding: 18px;
+  border-radius: 18px;
 }
 
 .mono {
@@ -35,8 +37,37 @@ body {
 }
 
 .table-card {
-  background: rgba(15, 18, 26, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  padding: 12px;
+  background: rgba(7, 20, 32, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.table-card .ant-table {
+  background: transparent;
+  color: #e8f0f7;
+}
+
+.table-card .ant-table-thead > tr > th {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: #e8f0f7;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.table-card .ant-table-tbody > tr > td {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.table-card .ant-table-tbody > tr:hover > td {
+  background: rgba(14, 165, 233, 0.08);
+}
+
+.table-card .ant-table-tbody > tr > td,
+.table-card .ant-table-cell {
+  background: rgba(7, 20, 32, 0.9);
+}
+
+.table-card .ant-table-tbody > tr.ant-table-row:hover > td,
+.table-card .ant-table-tbody > tr:hover > td.ant-table-cell-row-hover {
+  background: rgba(14, 165, 233, 0.08) !important;
 }

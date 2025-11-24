@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
-import { Layout, Typography, Space, Select, Tabs, Button, message } from "antd";
+import { Layout, Typography, Space, Select, Button, message } from "antd";
 import { ReloadOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import CommandList from "./components/CommandList";
 import ExecutionTable from "./components/ExecutionTable";
@@ -12,6 +12,7 @@ import {
   fetchGPU,
   fetchNodes,
   runCommand,
+  updateCommand,
 } from "./api";
 import { Command, Execution, GpuSample, Node } from "./types";
 
@@ -114,6 +115,23 @@ function App() {
     }
   };
 
+  const handleUpdate = async (
+    id: string,
+    payload: { name: string; description: string; script: string; timeout_seconds?: number }
+  ) => {
+    try {
+      const updated = await updateCommand(id, {
+        ...payload,
+        timeout_seconds: payload.timeout_seconds ? Number(payload.timeout_seconds) : undefined,
+      });
+      setCommands((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      message.success(`Updated ${updated.name}`);
+    } catch (err) {
+      console.error(err);
+      message.error("Failed to update command");
+    }
+  };
+
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Header>
@@ -140,46 +158,31 @@ function App() {
         </Space>
       </Header>
       <Content>
-        <div className="panel">
-          <Tabs
-            defaultActiveKey="commands"
-            tabBarStyle={{ color: "#ffffff" }}
-            items={[
-              {
-                key: "commands",
-                label: <span style={{ color: "#ffffff" }}>Commands</span>,
-                children: (
-                  <CommandList
-                    commands={commands}
-                    nodes={nodes}
-                    selectedNodeId={selectedNode}
-                    onRun={handleRun}
-                    onCreate={handleCreate}
-                    onDelete={handleDelete}
-                    loading={loading}
-                  />
-                ),
-              },
-              {
-                key: "executions",
-                label: <span style={{ color: "#ffffff" }}>Executions</span>,
-                children: (
-                  <ExecutionTable
-                    executions={executions}
-                    commands={commands}
-                    nodes={nodes}
-                    onRefresh={refreshExecutionsOnly}
-                  />
-                ),
-              },
-              {
-                key: "gpu",
-                label: <span style={{ color: "#ffffff" }}>GPU Overview</span>,
-                children: <GpuChart samples={gpu} nodes={nodes} onRefresh={refreshAll} loading={loading} />,
-              },
-            ]}
-          />
-        </div>
+        <Space direction="vertical" size="large" style={{ display: "flex" }}>
+          <div className="panel">
+            <CommandList
+              commands={commands}
+              nodes={nodes}
+              selectedNodeId={selectedNode}
+              onRun={handleRun}
+              onCreate={handleCreate}
+              onUpdate={handleUpdate}
+              onDelete={handleDelete}
+              loading={loading}
+            />
+          </div>
+          <div className="panel">
+            <ExecutionTable
+              executions={executions}
+              commands={commands}
+              nodes={nodes}
+              onRefresh={refreshExecutionsOnly}
+            />
+          </div>
+          <div className="panel">
+            <GpuChart samples={gpu} nodes={nodes} onRefresh={refreshAll} loading={loading} />
+          </div>
+        </Space>
       </Content>
     </Layout>
   );

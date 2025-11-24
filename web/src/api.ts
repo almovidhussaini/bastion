@@ -30,6 +30,19 @@ export async function createCommand(payload: {
   return res.data;
 }
 
+export async function updateCommand(
+  id: string,
+  payload: {
+    name: string;
+    description: string;
+    script: string;
+    timeout_seconds?: number;
+  }
+): Promise<Command> {
+  const res = await api.put<Command>("/api/v1/commands", { id, ...payload });
+  return res.data;
+}
+
 export async function deleteCommand(id: string): Promise<void> {
   await api.delete("/api/v1/commands", { params: { id } });
 }

@@ -22,7 +22,7 @@ func main() {
 
     port := envOr("DAEMON_PORT", "9090")
     log.Printf("Daemon listening on :%s", port)
-    if err := http.ListenAndServe(":"+port, mux); err != nil {
+    if err := http.ListenAndServe("127.0.0.1:"+port, mux); err != nil {
         log.Fatalf("daemon error: %v", err)
     }
 }
@@ -88,6 +88,10 @@ func runScript(ctx context.Context, script string, workdir string) (string, stri
             exitCode = exitErr.ExitCode()
         } else {
             exitCode = 1
+        }
+        if stderr.Len() == 0 {
+            // Surface process start failures (e.g., missing shell) to the caller.
+            stderr.WriteString(err.Error())
         }
     }
     return stdout.String(), stderr.String(), exitCode, err

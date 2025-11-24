@@ -35,7 +35,7 @@ const GpuChart: React.FC<Props> = ({ samples, nodes, onRefresh, loading }) => {
   return (
     <Card
       className="table-card"
-      title="GPU Overview"
+      title={<span style={{ color: "#fff", fontWeight: 600 }}>GPU Overview</span>}
       extra={<Button onClick={onRefresh} loading={loading}>Refresh</Button>}
     >
       <ResponsiveContainer width="100%" height={320}>

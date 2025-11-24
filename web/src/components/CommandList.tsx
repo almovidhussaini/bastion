@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -13,7 +13,13 @@ import {
   Typography,
   message,
 } from "antd";
-import { EyeOutlined, PlayCircleOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import {
+  EyeOutlined,
+  PlayCircleOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  EditOutlined,
+} from "@ant-design/icons";
 import { Command, Node } from "../types";
 
 interface Props {
@@ -27,6 +33,15 @@ interface Props {
     script: string;
     timeout_seconds?: number;
   }) => Promise<void> | void;
+  onUpdate: (
+    id: string,
+    payload: {
+      name: string;
+      description: string;
+      script: string;
+      timeout_seconds?: number;
+    }
+  ) => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
   loading?: boolean;
 }
@@ -37,13 +52,17 @@ const CommandList: React.FC<Props> = ({
   selectedNodeId,
   onRun,
   onCreate,
+  onUpdate,
   onDelete,
   loading,
 }) => {
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [viewing, setViewing] = useState<Command | null>(null);
+  const [editing, setEditing] = useState<Command | null>(null);
+  const [updating, setUpdating] = useState(false);
   const [form] = Form.useForm();
+  const [editForm] = Form.useForm();
 
   const nodeNames = useMemo(() => {
     const map: Record<string, string> = {};
@@ -57,7 +76,7 @@ const CommandList: React.FC<Props> = ({
       dataIndex: "name",
       key: "name",
       render: (text: string) => (
-        <Typography.Text strong style={{ color: "#000" }}>
+        <Typography.Text strong style={{ color: "#e2e8f0" }}>
           {text}
         </Typography.Text>
       ),
@@ -67,7 +86,7 @@ const CommandList: React.FC<Props> = ({
       dataIndex: "description",
       key: "description",
       render: (text: string) => (
-        <Typography.Text strong style={{ color: "#000" }}>
+        <Typography.Text strong style={{ color: "#e2e8f0" }}>
           {text}
         </Typography.Text>
       ),
@@ -82,10 +101,25 @@ const CommandList: React.FC<Props> = ({
     {
       title: "Actions",
       key: "actions",
+      align: "center" as const,
       render: (_: unknown, record: Command) => (
-        <Space>
+        <Space align="center">
           <Button icon={<EyeOutlined />} onClick={() => setViewing(record)}>
             View
+          </Button>
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => {
+              setEditing(record);
+              editForm.setFieldsValue({
+                name: record.name,
+                description: record.description,
+                script: record.script,
+                timeout_seconds: record.timeout_seconds,
+              });
+            }}
+          >
+            Edit
           </Button>
           <Button
             icon={<PlayCircleOutlined />}
@@ -129,12 +163,41 @@ const CommandList: React.FC<Props> = ({
     }
   };
 
+  const submitUpdate = async () => {
+    if (!editing) return;
+    try {
+      const values = await editForm.validateFields();
+      setUpdating(true);
+      await onUpdate(editing.id, {
+        name: values.name,
+        description: values.description,
+        script: values.script,
+        timeout_seconds: values.timeout_seconds,
+      });
+      setEditing(null);
+      editForm.resetFields();
+    } catch (err) {
+      console.error(err);
+      message.error("Failed to update command");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   return (
-    <Card className="table-card" title="Command Library" extra={
-      <Button icon={<PlusOutlined />} type="dashed" onClick={() => setOpen(true)}>
-        New Command
-      </Button>
-    }>
+    <Card
+      className="table-card"
+      title={
+        <Typography.Text strong style={{ color: "#fff" }}>
+          Command Library
+        </Typography.Text>
+      }
+      extra={
+        <Button icon={<PlusOutlined />} type="dashed" onClick={() => setOpen(true)}>
+          New Command
+        </Button>
+      }
+    >
       {!selectedNodeId && (
         <Alert
           type="warning"
@@ -149,6 +212,10 @@ const CommandList: React.FC<Props> = ({
         dataSource={commands}
         pagination={{ pageSize: 7 }}
         loading={loading}
+        bordered
+        size="middle"
+        tableLayout="fixed"
+        scroll={{ x: true }}
       />
       <Modal
         title="Create Command"
@@ -168,6 +235,40 @@ const CommandList: React.FC<Props> = ({
           </Form.Item>
           <Form.Item name="description" label="Description">
             <Input placeholder="What does this command do?" />
+          </Form.Item>
+          <Form.Item
+            name="script"
+            label="Bash Script"
+            rules={[{ required: true, message: "Script is required" }]}
+          >
+            <Input.TextArea rows={6} className="mono" placeholder="bash -lc commands" />
+          </Form.Item>
+          <Form.Item name="timeout_seconds" label="Timeout (seconds)">
+            <Input type="number" min={1} />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title={editing ? `Edit ${editing.name}` : "Edit Command"}
+        open={!!editing}
+        onCancel={() => {
+          setEditing(null);
+          editForm.resetFields();
+        }}
+        onOk={submitUpdate}
+        confirmLoading={updating}
+        width={720}
+      >
+        <Form layout="vertical" form={editForm}>
+          <Form.Item
+            name="name"
+            label="Name"
+            rules={[{ required: true, message: "Name is required" }]}
+          >
+            <Input placeholder="Command name" />
+          </Form.Item>
+          <Form.Item name="description" label="Description">
+            <Input placeholder="Description" />
           </Form.Item>
           <Form.Item
             name="script"
@@ -210,7 +311,7 @@ const CommandList: React.FC<Props> = ({
               Timeout: <Tag color="blue">{viewing.timeout_seconds}s</Tag>
             </Typography.Text>
             <Typography.Text type="secondary">
-              ID: {viewing.id} · Created:{" "}
+              ID: {viewing.id} - Created:{" "}
               {viewing.created_at ? new Date(viewing.created_at).toLocaleString() : "n/a"}
             </Typography.Text>
           </Space>

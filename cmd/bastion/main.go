@@ -1,8 +1,10 @@
 ﻿package main
 
 import (
+    "bufio"
     "context"
     "encoding/json"
+    "errors"
     "log"
     "net/http"
     "os"
@@ -18,9 +20,29 @@ type bastionServer struct {
 }
 
 func main() {
-    commandRepo := core.NewInMemoryCommandRepo()
-    nodeRepo := core.NewInMemoryNodeRepo()
-    execRepo := core.NewInMemoryExecutionRepo()
+    loadEnvFile(".env")
+
+    var (
+        commandRepo core.CommandRepository
+        nodeRepo    core.NodeRepository
+        execRepo    core.ExecutionRepository
+    )
+
+    if dsn := os.Getenv("BASTION_DB_DSN"); dsn != "" {
+        cmdRepo, nRepo, eRepo, closeFn, err := core.NewPostgresRepos(dsn)
+        if err != nil {
+            log.Fatalf("failed to init postgres: %v", err)
+        }
+        log.Printf("Using PostgreSQL for persistence")
+        defer closeFn()
+        commandRepo = cmdRepo
+        nodeRepo = nRepo
+        execRepo = eRepo
+    } else {
+        commandRepo = core.NewInMemoryCommandRepo()
+        nodeRepo = core.NewInMemoryNodeRepo()
+        execRepo = core.NewInMemoryExecutionRepo()
+    }
     svc := core.NewBastionService(commandRepo, nodeRepo, execRepo)
 
     daemonURL := envOr("DAEMON_URL", "http://localhost:9090")
@@ -105,6 +127,29 @@ func (s *bastionServer) handleCommands(w http.ResponseWriter, r *http.Request) {
             return
         }
         writeJSON(w, http.StatusCreated, cmd)
+    case http.MethodPut:
+        var payload struct {
+            ID             string `json:"id"`
+            Name           string `json:"name"`
+            Description    string `json:"description"`
+            Script         string `json:"script"`
+            TimeoutSeconds int    `json:"timeout_seconds"`
+        }
+        if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+            http.Error(w, "invalid payload", http.StatusBadRequest)
+            return
+        }
+        cmd, err := s.svc.UpdateCommand(payload.ID, core.Command{
+            Name:           payload.Name,
+            Description:    payload.Description,
+            Script:         payload.Script,
+            TimeoutSeconds: payload.TimeoutSeconds,
+        })
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+        writeJSON(w, http.StatusOK, cmd)
     case http.MethodDelete:
         id := r.URL.Query().Get("id")
         if id == "" {
@@ -184,6 +229,51 @@ func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
     json.NewEncoder(w).Encode(payload)
 }
 
+func loadEnvFile(path string) {
+    f, err := os.Open(path)
+    if err != nil {
+        if errors.Is(err, os.ErrNotExist) {
+            return
+        }
+        log.Printf("cannot open %s: %v", path, err)
+        return
+    }
+    defer f.Close()
+
+    scanner := bufio.NewScanner(f)
+    loaded := 0
+    for scanner.Scan() {
+        line := strings.TrimSpace(scanner.Text())
+        if line == "" || strings.HasPrefix(line, "#") {
+            continue
+        }
+        parts := strings.SplitN(line, "=", 2)
+        if len(parts) != 2 {
+            continue
+        }
+        key := strings.TrimSpace(parts[0])
+        if key == "" {
+            continue
+        }
+        if _, exists := os.LookupEnv(key); exists {
+            // Keep explicit environment variables as-is.
+            continue
+        }
+        value := strings.TrimSpace(parts[1])
+        value = strings.Trim(value, `"'`)
+        if err := os.Setenv(key, value); err == nil {
+            loaded++
+        }
+    }
+    if err := scanner.Err(); err != nil {
+        log.Printf("error reading %s: %v", path, err)
+        return
+    }
+    if loaded > 0 {
+        log.Printf("Loaded %d env vars from %s", loaded, path)
+    }
+}
+
 func envOr(key, fallback string) string {
     if v := strings.TrimSpace(os.Getenv(key)); v != "" {
         return v
@@ -195,7 +285,7 @@ func withCORS(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         w.Header().Set("Access-Control-Allow-Origin", "*")
         w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-        w.Header().Set("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+        w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
         if r.Method == http.MethodOptions {
             w.WriteHeader(http.StatusNoContent)
             return
